@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -8,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace ConsoleAppParallelDemo
 {
-    #region ForEach并行计算
+    #region Parallel.ForEach 并行计算 
     class ProgramDemo1
     {
         static void Main(string[] args)
@@ -366,5 +367,86 @@ namespace ConsoleAppParallelDemo
             }
         }
     }
+    #endregion
+    #region 并发集合 Concurrent
+    class Program9
+    {
+        private static List<string> _keyList;
+        private static void ParallelPartitionGenerateXXX()
+        {
+            var sw = Stopwatch.StartNew();
+            lock (_keyList)
+            {
+                // 临界代码区，排他访问
+            }
+        }
+        static void Main(string[] args)
+        {
+            _keyList = new List<string>();
+            ParallelPartitionGenerateXXX();
+        }
+    }
+    #endregion
+    #region 使用并发队列 ConcurrentQueue
+    class Program10
+    {
+        private static ConcurrentQueue<string> _keyQueue;
+        private static void ParallelPartitionGenerateXXX()
+        {
+            var sw = Stopwatch.StartNew();
+            Parallel.ForEach(new[] { "a", "b", "c" }, (c) => {
+                _keyQueue.Enqueue(c);
+            });
+        }
+        static void Main(string[] args)
+        {
+            _keyQueue = new ConcurrentQueue<string>();
+            ;
+            var tAsync = Task.Factory.StartNew(() => { ParallelPartitionGenerateXXX(); });
+            string lastKey = string.Empty;
+            while(tAsync.Status == TaskStatus.Running || tAsync.Status == TaskStatus.WaitingToRun)
+            {
+                if (_keyQueue.TryPeek(out lastKey))
+                {
+                    ;
+                }
+                else
+                {
+                    ; // No keys yet.
+                }
+            }
+            tAsync.Wait();
+        }
+    }
+    #endregion
+    #region 实现并行的生产者-消费者模式
+
+    #endregion
+    #region 实现多重并行的生产者-消费者模式
+
+    #endregion
+    #region 通过并发集合设计流水线
+
+    #endregion
+    #region 使用并发堆栈
+
+    #endregion
+    #region 将数组和不安全的集合转换为并发集合
+
+    #endregion
+    #region 使用并发的无序集合（Bag）
+
+    #endregion
+    #region 理解 IProducerConsumerCollection接口
+
+    #endregion
+    #region 理解阻塞（blocking）并发集合所提供的的限界（bounding）和阻塞能力
+
+    #endregion
+    #region 取消并发集合上的操作
+
+    #endregion
+    #region 通过很多 BlockingCollection 实例实现过滤流水线
+
     #endregion
 }
