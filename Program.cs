@@ -419,11 +419,138 @@ namespace ConsoleAppParallelDemo
         }
     }
     #endregion
-    #region 实现并行的生产者-消费者模式
+    #region 实现并行的生产者-消费者模式 Procducer-consumer (单流水线，两阶段)
+    class Program11
+    {
+        private static ConcurrentQueue<string> _ProcducerQueue; // 生产者队列
+        private static ConcurrentQueue<string> _ConsumerQueue;  // 消费者队列
+        // 生产者（多生产者）
+        private static void ParallelPartitionProcducer(int maxDegree)
+        {
+            var sw = Stopwatch.StartNew();
+            var parallelOptions = new ParallelOptions();
+            parallelOptions.MaxDegreeOfParallelism = maxDegree; // 指定最大并行度
+            Parallel.ForEach(new[] { "a", "b", "c", "d", "e" },
+                parallelOptions,
+                (c) => {
+                    _ProcducerQueue.Enqueue(c);
+            });
+            Debug.WriteLine($"ParallelPartitionProcducer::{sw.Elapsed.ToString()}");
+        }
+        // 消费者（单消费者）
+        private static void ParallelPartitionConsumer(Task taskProducer)
+        {
+            var sw = Stopwatch.StartNew();
 
+            while(taskProducer.Status == TaskStatus.Running 
+                || taskProducer.Status == TaskStatus.WaitingToRun
+                || _ProcducerQueue.Count > 0)
+            {
+                if (_ProcducerQueue.TryDequeue(out string result))
+                {
+                    var consumerItem = result; // 加工数据
+                    _ConsumerQueue.Enqueue(consumerItem); // 存入消费者队列 
+                }
+            }
+            Debug.WriteLine($"ParallelPartitionConsumer::{sw.Elapsed.ToString()}");
+        }
+        static void Main(string[] args)
+        {
+            var taskProducer = Task.Factory.StartNew(() => { // 创建并启动生产者任务
+                ParallelPartitionProcducer(Environment.ProcessorCount - 1); // 最大逻辑处理器个数 Environment.ProcessorCount
+            });
+            var taskConsumer = Task.Factory.StartNew(() => { // 创建并启动消费者任务
+                ParallelPartitionConsumer(taskProducer); 
+            });
+            string lastKey = string.Empty;
+            while (taskConsumer.Status == TaskStatus.Running 
+                || taskConsumer.Status == TaskStatus.WaitingToRun)
+            {
+                if (_ConsumerQueue.TryPeek(out lastKey))
+                {
+                    Console.WriteLine(lastKey);
+                }
+                else
+                {
+                    ; // No keys yet.
+                }
+            }
+            Task.WaitAll(taskProducer, taskConsumer);
+            Console.WriteLine("Finished.");
+        }
+    }
     #endregion
-    #region 实现多重并行的生产者-消费者模式
-
+    #region 实现多重并行的生产者-消费者模式 Procducer-consumer (单流水线，两阶段) + Interlocked
+    class Program12
+    {
+        private static ConcurrentQueue<string> _ProcducerQueue; // 生产者队列
+        private static ConcurrentQueue<string> _ConsumerQueue;  // 消费者队列
+        // 生产者（多生产者）
+        private static void ParallelPartitionProcducer(int maxDegree)
+        {
+            var sw = Stopwatch.StartNew();
+            var parallelOptions = new ParallelOptions();
+            parallelOptions.MaxDegreeOfParallelism = maxDegree; // 指定最大并行度
+            Parallel.ForEach(new[] { "a", "b", "c", "d", "e" },
+                parallelOptions,
+                (c) => {
+                    _ProcducerQueue.Enqueue(c);
+                });
+            Debug.WriteLine($"ParallelPartitionProcducer::{sw.Elapsed.ToString()}");
+        }
+        // 消费者（多消费者）
+        static int taskRunning = 0; // 任务计数器
+        private static void ParallelPartitionConsumer(Task taskProducer)
+        {
+            var sw = Stopwatch.StartNew();
+            var maxTask = Environment.ProcessorCount / 2;
+            var tasks = new Task[maxTask];
+            for(var i = 0; i < maxTask; i++)
+            {
+                System.Threading.Interlocked.Increment(ref taskRunning); // 增加一个任务
+                tasks[i] = Task.Factory.StartNew(() =>
+                {
+                    while (taskProducer.Status == TaskStatus.Running
+                        || taskProducer.Status == TaskStatus.WaitingToRun
+                        || _ProcducerQueue.Count > 0)
+                    {
+                        if (_ProcducerQueue.TryDequeue(out string result))
+                        {
+                            var consumerItem = result; // 加工数据
+                            _ConsumerQueue.Enqueue(consumerItem); // 存入消费者队列 
+                        }
+                    }
+                    System.Threading.Interlocked.Decrement(ref taskRunning); // 减少一个任务
+                });
+            }
+            Task.WaitAll(tasks);
+            Debug.WriteLine($"ParallelPartitionConsumer::{sw.Elapsed.ToString()}");
+        }
+        static void Main(string[] args)
+        {
+            var taskProducer = Task.Factory.StartNew(() => { // 创建并启动生产者任务
+                ParallelPartitionProcducer(Environment.ProcessorCount - 1); // 最大逻辑处理器个数 Environment.ProcessorCount
+            });
+            var taskConsumer = Task.Factory.StartNew(() => { // 创建并启动消费者任务
+                ParallelPartitionConsumer(taskProducer);
+            });
+            string lastKey = string.Empty;
+            while (taskConsumer.Status == TaskStatus.Running
+                || taskConsumer.Status == TaskStatus.WaitingToRun)
+            {
+                if (_ConsumerQueue.TryPeek(out lastKey))
+                {
+                    Console.WriteLine(lastKey);
+                }
+                else
+                {
+                    ; // No keys yet.
+                }
+            }
+            Task.WaitAll(taskProducer, taskConsumer);
+            Console.WriteLine("Finished.");
+        }
+    }
     #endregion
     #region 通过并发集合设计流水线
 
