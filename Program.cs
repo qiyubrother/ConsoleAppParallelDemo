@@ -613,8 +613,44 @@ namespace ConsoleAppParallelDemo
         }
     }
     #endregion
-    #region 使用并发堆栈
+    #region ConcurrentBag 使用 SpinWait.SpinUntil | volatile
+    class Program14
+    {
+        private static ConcurrentBag<string> demoBag = new ConcurrentBag<string>();
+        /* volatile 可以确保在不同的线程进行访问的时候，可以得到这些变量的最新值。因此，这些变量不会被编译器按照只在一个线程中进行访问的假定进行优化。 */
+        private static volatile bool isTaskWorking = true; 
+        static void Main(string[] args)
+        {
+            Parallel.Invoke(
+                ()=>{
+                    try
+                    {
+                        /* 处理任务 */
 
+                        demoBag.Add("item-**");
+                    }
+                    catch(Exception ex)
+                    {
+
+                    }
+                    finally
+                    {
+                        isTaskWorking = false;
+                    }
+                },
+                () => { /* Do something. */ }
+            );
+            System.Threading.SpinWait.SpinUntil(()=>isTaskWorking);
+            while(!demoBag.IsEmpty)
+            {
+                // 处理
+                if (demoBag.TryTake(out string result))
+                {
+                    ;
+                }
+            }
+        }
+    }
     #endregion
     #region 将数组和不安全的集合转换为并发集合
 
