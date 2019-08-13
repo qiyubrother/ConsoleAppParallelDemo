@@ -552,8 +552,66 @@ namespace ConsoleAppParallelDemo
         }
     }
     #endregion
-    #region 通过并发集合设计流水线
+    #region 使用并发队列 ConcurrentStack
+    class Program13
+    {
+        private static ConcurrentStack<string> _ProcducerStack; // 生产者堆栈
+        private static ConcurrentStack<string> _ConsumerStack;  // 消费者堆栈
+        // 生产者（多生产者）
+        private static void ParallelPartitionProcducer(int maxDegree)
+        {
+            var sw = Stopwatch.StartNew();
+            var parallelOptions = new ParallelOptions();
+            parallelOptions.MaxDegreeOfParallelism = maxDegree; // 指定最大并行度
+            Parallel.ForEach(new[] { "a", "b", "c", "d", "e" },
+                parallelOptions,
+                (c) => {
+                    _ProcducerStack.Push(c);
+                });
+            Debug.WriteLine($"ParallelPartitionProcducer::{sw.Elapsed.ToString()}");
+        }
+        // 消费者（单消费者）
+        private static void ParallelPartitionConsumer(Task taskProducer)
+        {
+            var sw = Stopwatch.StartNew();
 
+            while (taskProducer.Status == TaskStatus.Running
+                || taskProducer.Status == TaskStatus.WaitingToRun
+                || !_ProcducerStack.IsEmpty)
+            {
+                if (_ProcducerStack.TryPop(out string result))
+                {
+                    var consumerItem = result; // 加工数据
+                    _ConsumerStack.Push(consumerItem); // 存入消费者堆栈 
+                }
+            }
+            Debug.WriteLine($"ParallelPartitionConsumer::{sw.Elapsed.ToString()}");
+        }
+        static void Main(string[] args)
+        {
+            var taskProducer = Task.Factory.StartNew(() => { // 创建并启动生产者任务
+                ParallelPartitionProcducer(Environment.ProcessorCount - 1); // 最大逻辑处理器个数 Environment.ProcessorCount
+            });
+            var taskConsumer = Task.Factory.StartNew(() => { // 创建并启动消费者任务
+                ParallelPartitionConsumer(taskProducer);
+            });
+            string lastKey = string.Empty;
+            while (taskConsumer.Status == TaskStatus.Running
+                || taskConsumer.Status == TaskStatus.WaitingToRun)
+            {
+                if (_ConsumerStack.TryPop(out lastKey))
+                {
+                    Console.WriteLine(lastKey);
+                }
+                else
+                {
+                    ; // No keys yet.
+                }
+            }
+            Task.WaitAll(taskProducer, taskConsumer);
+            Console.WriteLine("Finished.");
+        }
+    }
     #endregion
     #region 使用并发堆栈
 
