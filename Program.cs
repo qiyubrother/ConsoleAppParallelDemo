@@ -652,6 +652,69 @@ namespace ConsoleAppParallelDemo
         }
     }
     #endregion
+    #region IProducerConsumerCollection<T>, BlockingCollection<T>
+    class Program15
+    {
+        /*
+        当集合容量达到NUM_MAX时，如果有一个添加元素的请求，那么生产者任务或线程将会被阻塞。
+        也就是说，生产者任务或线程必须等待，知道有元素被删除为止。
+        限界功能对于控制内存中集合的最大大小特别是在需要处理大量元素的时候，非常有用。
+        */
+        private static BlockingCollection<string> procducer;
+        private static BlockingCollection<string> consumer;
+        private static int NUM_MAX = 1000; // 流水线最大容量
+        static void Main(string[] args)
+        {
+            procducer = new BlockingCollection<string>(NUM_MAX);
+            consumer = new BlockingCollection<string>(NUM_MAX);
+            Parallel.Invoke(
+                () => {
+                    try
+                    {
+                        /* 处理任务 */
+                        do
+                        {
+                            procducer.Add("item-**");
+                            break;
+
+                        } while (true);
+                    }
+                    catch (Exception ex)
+                    {
+
+                    }
+                    finally
+                    {
+                        procducer.CompleteAdding(); // Let the consumer know the producer's work is done.
+                    }
+                },
+                () => {
+                    try
+                    {
+                        /* 处理任务 */
+
+                        while(!procducer.IsCompleted)
+                        {
+                            if (procducer.TryTake(out string item))
+                            {
+                                consumer.Add($"c-{item}");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+
+                    }
+                    finally
+                    {
+                        consumer.CompleteAdding(); // Let the consumer know the producer's work is done.
+                    }
+                }
+            );
+            
+        }
+    }
+    #endregion
     #region 将数组和不安全的集合转换为并发集合
 
     #endregion
