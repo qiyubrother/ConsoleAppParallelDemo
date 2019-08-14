@@ -715,22 +715,82 @@ namespace ConsoleAppParallelDemo
         }
     }
     #endregion
-    #region 将数组和不安全的集合转换为并发集合
+    #region 取消 BlockingCollection 进行的操作
+    class Program16
+    {
+        private static BlockingCollection<string> procducer;
+        private static BlockingCollection<string> consumer;
+        private static int NUM_MAX = 1000; // 流水线最大容量
+        static void Main(string[] args)
+        {
+            procducer = new BlockingCollection<string>(NUM_MAX);
+            consumer = new BlockingCollection<string>(NUM_MAX);
+            var cts = new CancellationTokenSource();
+            var ct = cts.Token;
+            Parallel.Invoke(
+                () => A1(ct),
+                () => {
+                    try
+                    {
+                        /* 处理任务 */
 
+                        while (!procducer.IsCompleted)
+                        {
+                            if (procducer.TryTake(out string item))
+                            {
+                                consumer.Add($"c-{item}");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+
+                    }
+                    finally
+                    {
+                        consumer.CompleteAdding(); // Let the consumer know the producer's work is done.
+                    }
+                }
+            );
+
+        }
+
+        private static void A1(CancellationToken ct)
+        {
+            try
+            {
+                /* 处理任务 */
+                do
+                {
+                    if (!procducer.TryAdd("item-**", 2000, ct))
+                    {
+                        throw new TimeoutException("操作超时，操作超过2秒钟。");
+                    }
+                    break;
+
+                } while (true);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            finally
+            {
+                procducer.CompleteAdding(); // Let the consumer know the producer's work is done.
+            }
+        }
+    }
     #endregion
-    #region 使用并发的无序集合（Bag）
+    #region 多个BlockingCollection实例实现一个过滤流水线  BlockingCollection<TInput>.TryTakeFromAny
+    /*
+     * 从任意一个输入流水线取得一个元素
+     * */
+    #endregion
+    #region ConcurrentDictionary 对于读操作时完全无锁的，AddOrUpdate会产生锁，使用时要确保线程安全
 
     #endregion
     #region 理解 IProducerConsumerCollection接口
 
     #endregion
-    #region 理解阻塞（blocking）并发集合所提供的的限界（bounding）和阻塞能力
 
-    #endregion
-    #region 取消并发集合上的操作
-
-    #endregion
-    #region 通过很多 BlockingCollection 实例实现过滤流水线
-
-    #endregion
 }
